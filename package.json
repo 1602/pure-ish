@@ -1,0 +1,9 @@
+{
+  "name": "impure",
+  "version": "1.0.0",
+  "description": "Side-effects manager for Javascript apps",
+  "main": "index.js",
+  "repository": "git@github.com:1602/impure.git",
+  "author": "Anatoliy <ac@ub.io>",
+  "license": "GNU General Public License v3.0"
+}
