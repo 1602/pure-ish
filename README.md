@@ -1,3 +1,3 @@
-# Impure.js
+# Pure-ish
 
 Side-effects manager for Javascript apps.
