@@ -179,6 +179,7 @@ function propagateUpdate(msg) {
     }
 }
 
+
 function dump(m) {
     if (process.env.PERSIST_STORE) {
         fs.writeFileSync(process.env.PERSIST_STORE, JSON.stringify(m, null, '  '));

@@ -5,5 +5,9 @@
   "main": "index.js",
   "repository": "git@github.com:1602/pure-ish.git",
   "author": "Anatoliy <ac@ub.io>",
-  "license": "GNU General Public License v3.0"
+  "license": "GNU General Public License v3.0",
+  "devDependencies": {
+    "expect": "^22.4.0",
+    "mocha": "^5.0.1"
+  }
 }
