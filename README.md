@@ -1,2 +1,3 @@
-# pure-green
-Purify your nodejs code.
+# Impure.js
+
+Side-effects manager for Javascript apps.
