@@ -8,6 +8,7 @@
   "license": "GNU General Public License v3.0",
   "devDependencies": {
     "expect": "^22.4.0",
-    "mocha": "^5.0.1"
+    "mocha": "^5.0.1",
+    "jest-mock": "^22.2.0"
   }
 }

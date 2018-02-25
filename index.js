@@ -141,16 +141,10 @@ function execute(cmd /*: Cmd */) {
         return;
     }
 
-    performTask(task, payload => propagateUpdate({ name: cmd.message, payload }));
+    task._perform(payload => propagateUpdate({ name: cmd.message, payload }));
 
 }
 
-
-function performTask(task, onComplete) {
-    const { handler } = task;
-
-    handler(task, onComplete);
-}
 
 
 function propagateUpdate(msg) {
