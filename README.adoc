@@ -1,8 +1,9 @@
 = Pure-ish
+:toc:
 
 Side-effects manager for Javascript apps.
 
-== Theory first: key concepts
+== Theory: key concepts
 
 === State is a single source of truth
 
