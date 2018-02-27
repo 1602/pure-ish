@@ -7,6 +7,8 @@ exports.fail = fail;
 
 
 function task(spec, handler) {
+    let resolvedResult = null;
+
     return Object.create({
         object: 'task',
         andThen(fn) {
@@ -32,22 +34,47 @@ function task(spec, handler) {
         attempt(message) {
             return { object: 'command', task: this, message };
         },
-        step(mock) {
+        stepOverTask(mock) {
+            // I don't quite like this hack
+            if (resolvedResult) {
+                return mock(resolvedResult);
+            }
+
             const result = mock(this.spec);
             if (result.result === 'success') {
+                let { data } = result;
+                while(true) {
+                    const c = tryContinuation.call(this, data);
+                    if (c.continue) {
+                        data = c.data;
+                    }
+                    break;
+                }
+            }
+
+            return this;
+
+            function tryContinuation(data) {
                 if (this.continuation.length) {
                     const next = this.continuation.shift();
                     if (next.operation === 'chain') {
-                        const nextTask = next.fn(result.data);
+                        const nextTask = next.fn(data);
                         this.spec = nextTask.spec;
                         this.handler = nextTask.handler;
-                        this.continuation = nextTask.continuation.concat(this.continuation);
+                        if (nextTask.continuation.length > 0) {
+                            this.continuation = nextTask.continuation.concat(this.continuation);
+                        }
+                        return { continue: false };
                     } else if (next.operation === 'map') {
-                        // implement map
+                        const mappedResult = next.fn(data);
+                        tryContinuation.call(this, mappedResult);
+                        return { continue: true, data: mappedResult };
                     }
+                } else {
+                    resolvedResult = data;
+                    return { continue: false };
                 }
             }
-            return this;
         },
         _perform(onComplete) {
             const { handler, spec } = this;

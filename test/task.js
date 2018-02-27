@@ -23,15 +23,15 @@ describe('Task', () => {
             .andThen(continuation2);
 
         chain
-            .step(({ url }) => {
+            .stepOverTask(({ url }) => {
                 expect(url).toEqual('http://example.com');
                 return { result: 'success', data: { hello: 'world' } };
             })
-            .step(({ url }) => {
+            .stepOverTask(({ url }) => {
                 expect(url).toEqual('https://github.com');
                 return { result: 'success', data: { foo: 'bar' } };
             })
-            .step(({ url }) => {
+            .stepOverTask(({ url }) => {
                 expect(url).toEqual('https://gitlab.com');
                 return { result: 'success', data: { bar: 'baz' } };
             });
@@ -44,6 +44,23 @@ describe('Task', () => {
         function fetch(url) {
             return task({ url }, httpRequest);
         }
+    });
+
+
+    it('should allow mapping a value produced by a task', () => {
+        const mapping = jest.fn(a => a + 1);
+        const expectation = jest.fn(res => expect(res).toEqual(8));
+
+        const chain = task({}, () => {})
+            .map(mapping)
+            .map(mapping);
+
+        chain
+            .stepOverTask(() => ({ result: 'success', data: 6 }))
+            .stepOverTask(expectation);
+
+        expect(mapping).toHaveBeenCalledTimes(2);
+        expect(expectation).toHaveBeenCalled();
     });
 
 });
