@@ -1,6 +1,6 @@
 {
   "name": "pure-ish",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Side-effects manager for Javascript apps",
   "main": "index.js",
   "repository": "git@github.com:1602/pure-ish.git",
@@ -8,7 +8,7 @@
   "license": "GNU General Public License v3.0",
   "devDependencies": {
     "expect": "^22.4.0",
-    "mocha": "^5.0.1",
-    "jest-mock": "^22.2.0"
+    "jest-mock": "^22.2.0",
+    "mocha": "^5.0.1"
   }
 }
