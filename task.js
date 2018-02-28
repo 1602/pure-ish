@@ -67,7 +67,6 @@ function task(spec, handler) {
                         return { continue: false };
                     } else if (next.operation === 'map') {
                         const mappedResult = next.fn(data);
-                        tryContinuation.call(this, mappedResult);
                         return { continue: true, data: mappedResult };
                     }
                 } else {
@@ -77,9 +76,43 @@ function task(spec, handler) {
             }
         },
         _perform(onComplete) {
-            const { handler, spec } = this;
+            const task = this;
+            let { handler, spec, continuation } = task;
 
-            handler(spec, onComplete);
+            runTask();
+
+            function runTask() {
+                console.log('will run', spec);
+                handler(spec, result => {
+                    if (result.result === 'success') {
+                        let { data } = result;
+                        while(true) {
+                            if (continuation.length === 0) {
+                                onComplete(result);
+                                break;
+                            }
+
+                            const next = continuation.shift();
+                            if (next.operation === 'chain') {
+                                const nextTask = next.fn(data);
+                                spec = nextTask.spec;
+                                handler = nextTask.handler;
+                                if (nextTask.continuation.length > 0) {
+                                    continuation = nextTask.continuation.concat(continuation);
+                                }
+                                runTask();
+                                break;
+                            } else if (next.operation === 'map') {
+                                data = next.fn(data);
+                            } else {
+                                throw new Error('Unknown operation');
+                            }
+                        }
+                    } else {
+                        onComplete(result);
+                    }
+                });
+            }
         },
     }, {
         continuation: { value: [], enumerable: false, writable: true },
