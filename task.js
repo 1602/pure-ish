@@ -163,11 +163,11 @@ function sequence(tasks) {
 
 
 function succeed(data) {
-    return task(null, (x, onComplete) => onComplete({ result: 'success', data }));
+    return task({ task: 'succeed', data }, ({ data }, onComplete) => onComplete({ result: 'success', data }));
 }
 
 
 function fail(error) {
-    return task(null, (x, onComplete) => onComplete({ result: 'failure', error }));
+    return task({ task: 'fail', error }, ({ error }, onComplete) => onComplete({ result: 'failure', error }));
 }
 
