@@ -47,8 +47,9 @@ function task(spec, handler) {
                     const c = tryContinuation.call(this, data);
                     if (c.continue) {
                         data = c.data;
+                    } else {
+                        break;
                     }
-                    break;
                 }
             }
 
