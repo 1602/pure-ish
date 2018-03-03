@@ -1,6 +1,6 @@
 {
   "name": "pure-ish",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "Side-effects manager for Javascript apps",
   "main": "index.js",
   "repository": "git@github.com:1602/pure-ish.git",
