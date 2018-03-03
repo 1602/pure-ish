@@ -9,6 +9,7 @@
   "devDependencies": {
     "expect": "^22.4.0",
     "jest-mock": "^22.2.0",
-    "mocha": "^5.0.1"
+    "mocha": "^5.0.1",
+    "nyc": "^11.4.1"
   }
 }
