@@ -25,21 +25,21 @@ describe('Decoder', () => {
 
         it('decodes with error', () =>
             expect(decodeValue(string(), 1602)).toEqual({
-                result: 'fail',
+                result: 'failure',
                 error: 'Expected string but received number 1602',
             }));
 
         it('expects non-null value', () =>
             expect(decodeValue(string(), null))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected string but received null',
                 }));
 
         it('expect non-undefined value', () =>
             expect(decodeValue(string(), undefined))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected string but received undefined',
                 }));
 
@@ -55,21 +55,21 @@ describe('Decoder', () => {
 
         it('decodes with error', () =>
             expect(decodeValue(number(), '1602')).toEqual({
-                result: 'fail',
+                result: 'failure',
                 error: 'Expected number but received string 1602',
             }));
 
         it('expects non-null value', () =>
             expect(decodeValue(number(), null))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected number but received null',
                 }));
 
         it('expect non-undefined value', () =>
             expect(decodeValue(number(), undefined))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected number but received undefined',
                 }));
 
@@ -85,21 +85,21 @@ describe('Decoder', () => {
 
         it('decodes with error', () =>
             expect(decodeValue(boolean(), '1602')).toEqual({
-                result: 'fail',
+                result: 'failure',
                 error: 'Expected boolean but received string 1602',
             }));
 
         it('expects non-null value', () =>
             expect(decodeValue(boolean(), null))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected boolean but received null',
                 }));
 
         it('expect non-undefined value', () =>
             expect(decodeValue(boolean(), undefined))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected boolean but received undefined',
                 }));
 
@@ -123,21 +123,21 @@ describe('Decoder', () => {
         it('expects non-null value', () =>
             expect(decodeValue(object({}), null))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected object but received null',
                 }));
 
         it('expect non-undefined value', () =>
             expect(decodeValue(object({}), undefined))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected object but received undefined',
                 }));
 
         it('fails when property decoding fails', () =>
             expect(decodeValue(object({ foo: string() }), { foo: 1 }))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'foo: Expected string but received number 1',
                 }));
     });
@@ -161,7 +161,7 @@ describe('Decoder', () => {
         it('finds incorrect item', () =>
             expect(decodeValue(array(string()), ['hello', 1, '2']))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Array item 1: Expected string but received number 1',
                 }));
 
@@ -178,14 +178,14 @@ describe('Decoder', () => {
 
         it('requires type matching', () =>
             expect(decodeValue(constant('1602'), 1602)).toEqual({
-                result: 'fail',
+                result: 'failure',
                 error: 'Expected string 1602 but received number 1602',
             }));
 
         it('expects non-null value', () =>
             expect(decodeValue(constant('1602'), null))
                 .toEqual({
-                    result: 'fail',
+                    result: 'failure',
                     error: 'Expected string 1602 but received null',
                 }));
 
@@ -207,7 +207,7 @@ describe('Decoder', () => {
 
         it('fails when all decoders fail', () =>
             expect(decodeValue(oneOf([string(), number()]), null)).toEqual({
-                result: 'fail',
+                result: 'failure',
                 error: 'All decoders failed:\n - Expected string but received null\n - Expected number but received null',
             }));
 

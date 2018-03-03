@@ -54,7 +54,7 @@ function decodeValue(decoder, v) {
 function decodeString(value) {
     if (value === null) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected string but received null`,
         };
     }
@@ -63,7 +63,7 @@ function decodeString(value) {
 
     if (actualType === 'undefined') {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected string but received undefined`,
         };
     }
@@ -76,7 +76,7 @@ function decodeString(value) {
     }
 
     return {
-        result: 'fail',
+        result: 'failure',
         error: `Expected string but received ${ actualType } ${ value }`,
     };
 }
@@ -84,7 +84,7 @@ function decodeString(value) {
 function decodeNumber(value) {
     if (value === null) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected number but received null`,
         };
     }
@@ -93,7 +93,7 @@ function decodeNumber(value) {
 
     if (actualType === 'undefined') {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected number but received undefined`,
         };
     }
@@ -106,7 +106,7 @@ function decodeNumber(value) {
     }
 
     return {
-        result: 'fail',
+        result: 'failure',
         error: `Expected number but received ${ actualType } ${ value }`,
     };
 }
@@ -114,7 +114,7 @@ function decodeNumber(value) {
 function decodeBoolean(value) {
     if (value === null) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected boolean but received null`,
         };
     }
@@ -123,7 +123,7 @@ function decodeBoolean(value) {
 
     if (actualType === 'undefined') {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected boolean but received undefined`,
         };
     }
@@ -136,7 +136,7 @@ function decodeBoolean(value) {
     }
 
     return {
-        result: 'fail',
+        result: 'failure',
         error: `Expected boolean but received ${ actualType } ${ value }`,
     };
 }
@@ -144,7 +144,7 @@ function decodeBoolean(value) {
 function decodeObject(spec, value) {
     if (value === null) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected object but received null`,
         };
     }
@@ -153,7 +153,7 @@ function decodeObject(spec, value) {
 
     if (actualType === 'undefined') {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected object but received undefined`,
         };
     }
@@ -162,7 +162,7 @@ function decodeObject(spec, value) {
         return Object
             .keys(spec)
             .reduce((accumulator, specKey) => {
-                if (accumulator.result === 'fail') {
+                if (accumulator.result === 'failure') {
                     return accumulator;
                 }
 
@@ -180,7 +180,7 @@ function decodeObject(spec, value) {
     }
 
     return {
-        result: 'fail',
+        result: 'failure',
         error: `Expected object but received ${ actualType } ${ value }`,
     };
 }
@@ -188,7 +188,7 @@ function decodeObject(spec, value) {
 function decodeArray(decoder, value) {
     if (value === null) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected array but received null`,
         };
     }
@@ -197,20 +197,20 @@ function decodeArray(decoder, value) {
 
     if (actualType === 'undefined') {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected array but received undefined`,
         };
     }
 
     if (actualType !== 'object' || !Array.isArray(value)) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected array but received ${ actualType }`,
         };
     }
 
     return value.reduce((accumulator, value, index) => {
-        if (accumulator.result === 'fail') {
+        if (accumulator.result === 'failure') {
             return accumulator;
         }
 
@@ -231,7 +231,7 @@ function decodeConstant(spec, value) {
 
     if (value === null && spec !== null) {
         return {
-            result: 'fail',
+            result: 'failure',
             error: `Expected ${ expectedType } ${ spec } but received null`,
         };
     }
@@ -251,7 +251,7 @@ function decodeConstant(spec, value) {
     }
 
     return {
-        result: 'fail',
+        result: 'failure',
         error: `Expected ${ expectedType } ${ spec } but received ${ actualType } ${ value }`,
     };
 }
@@ -263,13 +263,13 @@ function decodeOneOf(spec, value) {
         };
 
         const decodingResult = decodeValue(decoder, value);
-        if (decodingResult.result === 'fail') {
+        if (decodingResult.result === 'failure') {
             accumulator.error += '\n - ' + decodingResult.error;
             return accumulator;
         }
 
         return decodingResult;
-    }, { result: 'fail', error: 'All decoders failed:' });
+    }, { result: 'failure', error: 'All decoders failed:' });
 }
 
 function value() {
