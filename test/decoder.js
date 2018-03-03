@@ -1,9 +1,19 @@
 'use strict';
 
 const expect = require('expect');
-const { decodeValue, value, string, number, boolean, array, object, constant, oneOf, optional, nullable } = require('../decoder.js');
+const { objectContaining } = expect;
+const { decodeValue, value, string, number, boolean, array, object, constant, oneOf, optional, nullable, lazy } = require('../decoder.js');
 
 describe('Decoder', () => {
+
+    describe('decodeValue', () => {
+        it('fails when unknown decoder type encountered', () =>
+            expect(decodeValue({ type: 'something odd' }, null))
+                .toEqual({
+                    result: 'failure',
+                    error: 'Unknown decoder type: something odd',
+                }));
+    });
 
     describe('value', () => {
 
@@ -120,6 +130,13 @@ describe('Decoder', () => {
                     data: { foo: 'bar' },
                 }));
 
+        it('expects object', () =>
+            expect(decodeValue(object({}), 'hello'))
+                .toEqual({
+                    result: 'failure',
+                    error: 'Expected object but received string hello',
+                }));
+
         it('expects non-null value', () =>
             expect(decodeValue(object({}), null))
                 .toEqual({
@@ -135,7 +152,7 @@ describe('Decoder', () => {
                 }));
 
         it('fails when property decoding fails', () =>
-            expect(decodeValue(object({ foo: string() }), { foo: 1 }))
+            expect(decodeValue(object({ foo: string(), bar: value() }), { foo: 1, bar: 2 }))
                 .toEqual({
                     result: 'failure',
                     error: 'foo: Expected string but received number 1',
@@ -149,6 +166,27 @@ describe('Decoder', () => {
                 .toEqual({
                     result: 'success',
                     data: ['hello'],
+                }));
+
+        it('expects non-null value', () =>
+            expect(decodeValue(array(value()), null))
+                .toEqual({
+                    result: 'failure',
+                    error: 'Expected array but received null',
+                }));
+
+        it('expects array', () =>
+            expect(decodeValue(array(value()), 'not array'))
+                .toEqual({
+                    result: 'failure',
+                    error: 'Expected array but received string',
+                }));
+
+        it('expect non-undefined value', () =>
+            expect(decodeValue(array(value()), undefined))
+                .toEqual({
+                    result: 'failure',
+                    error: 'Expected array but received undefined',
                 }));
 
         it('decodes empty array successfully', () =>
@@ -229,6 +267,19 @@ describe('Decoder', () => {
                 result: 'success',
                 data: { hello: null },
             }));
+    });
+
+    describe('lazy', () => {
+
+        it('facilitates recursive decoders', () => {
+            const comment = object({
+                text: string(),
+                discussion: array(lazy(() => comment)),
+            });
+
+            expect(decodeValue(comment, { text: 'hello', discussion: [{ text: 'hi', discussion: [] }] }))
+                .toEqual(objectContaining({ result: 'success' }));
+        });
     });
 
 });

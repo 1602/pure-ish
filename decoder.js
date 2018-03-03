@@ -1,25 +1,25 @@
 'use strict';
 
-module.exports = {
+const decoders = module.exports = {
     decodeValue,
-    value,
-    string,
-    number,
-    boolean,
-    object,
-    array,
-    constant,
-    oneOf,
-    optional,
-    nullable,
+    value: () => decoder('value', null),
+    string: () => decoder('string', null),
+    boolean: () => decoder('boolean', null),
+    number: () => decoder('number', null),
+    object: spec => decoder('object', spec),
+    array: spec => decoder('array', spec),
+    constant: spec => decoder('constant', spec),
+    oneOf: spec => decoder('oneOf', spec),
+    optional: decoder => decoders.oneOf([decoders.constant(), decoder]),
+    nullable: decoder => decoders.oneOf([decoders.constant(null), decoder]),
+    succeed: v => decoder('succeed', v),
+    fail: v => decoder('fail', v),
+    lazy: fn => decoder('lazy', fn),
 };
 
 function decodeValue(decoder, v) {
     if (decoder.type === 'value') {
-        return {
-            result: 'success',
-            data: v,
-        };
+        return succeed(v);
     }
 
     if (decoder.type === 'string') {
@@ -49,113 +49,85 @@ function decodeValue(decoder, v) {
     if (decoder.type === 'oneOf') {
         return decodeOneOf(decoder.spec, v);
     }
+
+    if (decoder.type === 'succeed') {
+        return succeed(decoder.spec);
+    }
+
+    if (decoder.type === 'fail') {
+        return fail(decoder.spec);
+    }
+
+    if (decoder.type === 'lazy') {
+        return decodeValue(decoder.spec(), v);
+    }
+
+    return fail('Unknown decoder type: ' + decoder.type);
 }
 
 function decodeString(value) {
     if (value === null) {
-        return {
-            result: 'failure',
-            error: `Expected string but received null`,
-        };
+        return fail('Expected string but received null');
     }
 
     const actualType = typeof value;
 
     if (actualType === 'undefined') {
-        return {
-            result: 'failure',
-            error: `Expected string but received undefined`,
-        };
+        return fail('Expected string but received undefined');
     }
 
     if (actualType === 'string') {
-        return {
-            result: 'success',
-            data: value,
-        };
+        return succeed(value);
     }
 
-    return {
-        result: 'failure',
-        error: `Expected string but received ${ actualType } ${ value }`,
-    };
+    return fail(`Expected string but received ${ actualType } ${ value }`);
 }
 
 function decodeNumber(value) {
     if (value === null) {
-        return {
-            result: 'failure',
-            error: `Expected number but received null`,
-        };
+        return fail('Expected number but received null');
     }
 
     const actualType = typeof value;
 
     if (actualType === 'undefined') {
-        return {
-            result: 'failure',
-            error: `Expected number but received undefined`,
-        };
+        return fail('Expected number but received undefined');
     }
 
     if (actualType === 'number') {
-        return {
-            result: 'success',
-            data: value,
-        };
+        return succeed(value);
     }
 
-    return {
-        result: 'failure',
-        error: `Expected number but received ${ actualType } ${ value }`,
-    };
+    return fail(`Expected number but received ${ actualType } ${ value }`);
 }
 
 function decodeBoolean(value) {
     if (value === null) {
-        return {
-            result: 'failure',
-            error: `Expected boolean but received null`,
-        };
+        return fail('Expected boolean but received null');
     }
 
     const actualType = typeof value;
 
     if (actualType === 'undefined') {
-        return {
-            result: 'failure',
-            error: `Expected boolean but received undefined`,
-        };
+        return fail('Expected boolean but received undefined');
     }
 
     if (actualType === 'boolean') {
-        return {
-            result: 'success',
-            data: value,
-        };
+        return succeed(value);
     }
 
-    return {
-        result: 'failure',
-        error: `Expected boolean but received ${ actualType } ${ value }`,
-    };
+    return fail(`Expected boolean but received ${ actualType } ${ value }`);
 }
 
 function decodeObject(spec, value) {
     if (value === null) {
-        return {
-            result: 'failure',
-            error: `Expected object but received null`,
-        };
+        return fail('Expected object but received null');
     }
 
     const actualType = typeof value;
 
     if (actualType === 'undefined') {
-        return {
-            result: 'failure',
-            error: `Expected object but received undefined`,
-        };
+        return fail('Expected object but received undefined');
     }
 
     if (actualType === 'object') {
@@ -176,37 +148,25 @@ function decodeObject(spec, value) {
                 decodingPropertyResult.error = specKey + ': ' + decodingPropertyResult.error;
 
                 return decodingPropertyResult;
-            }, { result: 'success', data: {} });
+            }, succeed({}));
     }
 
-    return {
-        result: 'failure',
-        error: `Expected object but received ${ actualType } ${ value }`,
-    };
+    return fail(`Expected object but received ${ actualType } ${ value }`);
 }
 
 function decodeArray(decoder, value) {
     if (value === null) {
-        return {
-            result: 'failure',
-            error: `Expected array but received null`,
-        };
+        return fail('Expected array but received null');
     }
 
     const actualType = typeof value;
 
     if (actualType === 'undefined') {
-        return {
-            result: 'failure',
-            error: `Expected array but received undefined`,
-        };
+        return fail('Expected array but received undefined');
     }
 
     if (actualType !== 'object' || !Array.isArray(value)) {
-        return {
-            result: 'failure',
-            error: `Expected array but received ${ actualType }`,
-        };
+        return fail(`Expected array but received ${ actualType }`);
     }
 
     return value.reduce((accumulator, value, index) => {
@@ -222,7 +182,7 @@ function decodeArray(decoder, value) {
 
         itemDecodingResult.error = `Array item ${ index }: ${ itemDecodingResult.error }`;
         return itemDecodingResult;
-    }, { result: 'success', data: [] });
+    }, succeed([]));
 }
 
 function decodeConstant(spec, value) {
@@ -230,30 +190,18 @@ function decodeConstant(spec, value) {
     const expectedType = typeof spec;
 
     if (value === null && spec !== null) {
-        return {
-            result: 'failure',
-            error: `Expected ${ expectedType } ${ spec } but received null`,
-        };
+        return fail(`Expected ${ expectedType } ${ spec } but received null`);
     }
 
     if (actualType === 'undefined' && expectedType === 'undefined') {
-        return {
-            result: 'success',
-            data: value,
-        };
+        return succeed(value);
     }
 
     if (actualType === expectedType && spec === value) {
-        return {
-            result: 'success',
-            data: value,
-        };
+        return succeed(value);
     }
 
-    return {
-        result: 'failure',
-        error: `Expected ${ expectedType } ${ spec } but received ${ actualType } ${ value }`,
-    };
+    return fail(`Expected ${ expectedType } ${ spec } but received ${ actualType } ${ value }`);
 }
 
 function decodeOneOf(spec, value) {
@@ -269,74 +217,43 @@ function decodeOneOf(spec, value) {
         }
 
         return decodingResult;
-    }, { result: 'failure', error: 'All decoders failed:' });
+    }, fail('All decoders failed:'));
 }
 
-function value() {
+
+function succeed(data) {
     return {
-        object: 'decoder',
-        type: 'value',
+        result: 'success',
+        data
     };
 }
 
-function string() {
+
+function fail(error) {
     return {
-        object: 'decoder',
-        type: 'string',
+        result: 'failure',
+        error
     };
 }
 
-function boolean() {
-    return {
-        object: 'decoder',
-        type: 'boolean',
-    };
-}
 
-function number() {
-    return {
-        object: 'decoder',
-        type: 'number',
-    };
+function decoder(type, spec) {
+    return Object.create({
+    }, {
+        object: {
+            value: 'decoder',
+            writable: false,
+            enumerable: false,
+        },
+        type: {
+            value: type,
+            writable: false,
+            enumerable: true,
+        },
+        spec: {
+            value: spec,
+            writable: false,
+            enumerable: true,
+        },
+    });
 }
-
-function object(spec) {
-    return {
-        object: 'decoder',
-        type: 'object',
-        spec,
-    };
-}
-
-function array(spec) {
-    return {
-        object: 'decoder',
-        type: 'array',
-        spec,
-    };
-}
-
-function constant(spec) {
-    return {
-        object: 'decoder',
-        type: 'constant',
-        spec,
-    };
-}
-
-function oneOf(spec) {
-    return {
-        object: 'decoder',
-        type: 'oneOf',
-        spec,
-    };
-}
-
-function optional(decoder) {
-    return oneOf([constant(), decoder]);
-}
-
-function nullable(decoder) {
-    return oneOf([constant(null), decoder]);
-}
-
