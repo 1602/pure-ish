@@ -62,6 +62,14 @@ function decodeValue(decoder, v) {
         return decodeValue(decoder.spec(), v);
     }
 
+    if (decoder.type === 'map') {
+        return decodeMap(decoder.spec, v);
+    }
+
+    if (decoder.type === 'andThen') {
+        return decodeAndThen(decoder.spec, v);
+    }
+
     return fail('Unknown decoder type: ' + decoder.type);
 }
 
@@ -204,6 +212,7 @@ function decodeConstant(spec, value) {
     return fail(`Expected ${ expectedType } ${ spec } but received ${ actualType } ${ value }`);
 }
 
+
 function decodeOneOf(spec, value) {
     return spec.reduce((accumulator, decoder) => {
         if (accumulator.result === 'success') {
@@ -237,8 +246,31 @@ function fail(error) {
 }
 
 
+function decodeMap({ decoder, fn }, v) {
+    const res = decodeValue(decoder, v);
+    if (res.result === 'success') {
+        res.data = fn(res.data);
+    }
+    return res;
+}
+
+function decodeAndThen({ decoder, next }, v) {
+    const res = decodeValue(decoder, v);
+    if (res.result === 'success') {
+        return decodeValue(next(res.data), v);
+    }
+    return res;
+}
+
+
 function decoder(type, spec) {
     return Object.create({
+        map(fn) {
+            return decoder('map', { decoder: this, fn });
+        },
+        andThen(next) {
+            return decoder('andThen', { decoder: this, next });
+        },
     }, {
         object: {
             value: 'decoder',

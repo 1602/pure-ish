@@ -2,7 +2,8 @@
 
 const expect = require('expect');
 const { objectContaining } = expect;
-const { decodeValue, value, string, number, boolean, array, object, constant, oneOf, optional, nullable, lazy } = require('../decoder.js');
+const jest = require('jest-mock');
+const { decodeValue, value, string, number, boolean, array, object, constant, oneOf, optional, nullable, lazy, fail, succeed } = require('../decoder.js');
 
 describe('Decoder', () => {
 
@@ -279,6 +280,54 @@ describe('Decoder', () => {
 
             expect(decodeValue(comment, { text: 'hello', discussion: [{ text: 'hi', discussion: [] }] }))
                 .toEqual(objectContaining({ result: 'success' }));
+        });
+    });
+
+    describe('decoder.map', () => {
+
+        it('transforms decoded value', () =>
+            expect(decodeValue(string().map(s => s.toUpperCase()), 'nasa'))
+                .toEqual({ result: 'success', data: 'NASA' }));
+
+        it('chains only in case of success', () => {
+            const spy = jest.fn(x => x.toUppercase());
+            expect(decodeValue(number().map(spy), 'h')).toEqual(objectContaining({ result: 'failure' }));
+            expect(spy).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('decoder.andThen', () => {
+
+        it('chains decoders', () => {
+            const versionedDecoder = object({ version: number() })
+                .andThen(({version}) => object({ id: version === 1 ? string() : number () }));
+
+            expect(decodeValue(versionedDecoder, { version: 1, id: 'uuid' }))
+                .toEqual({ result: 'success', data: { id: 'uuid' } });
+
+            expect(decodeValue(versionedDecoder, { version: 2, id: 1 }))
+                .toEqual({ result: 'success', data: { id: 1 } });
+
+            expect(decodeValue(versionedDecoder, { version: 2, id: 'uuid' }))
+                .toEqual({ result: 'failure', error: 'id: Expected number but received string uuid' });
+
+            expect(decodeValue(versionedDecoder, { version: 1, id: 1 }))
+                .toEqual({ result: 'failure', error: 'id: Expected string but received number 1' });
+        });
+
+        it('chains only in case of success', () => {
+            const spy = jest.fn(succeed);
+            expect(decodeValue(number().andThen(spy), 'h')).toEqual(objectContaining({ result: 'failure' }));
+            expect(spy).not.toHaveBeenCalled();
+        });
+
+    });
+
+    describe('fail', () => {
+
+        it('allows to alter error message', () => {
+            const optionalString = oneOf([constant(), string(), succeed(-1)]).andThen(s => s === -1 ? fail('Not string or undefined') : succeed(s));
+            expect(decodeValue(optionalString, 1)).toEqual({ result: 'failure', error: 'Not string or undefined' });
         });
     });
 
