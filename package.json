@@ -6,8 +6,15 @@
   "repository": "git@github.com:1602/pure-ish.git",
   "author": "Anatoliy <main@anatoliy.in>",
   "license": "GNU General Public License v3.0",
+  "scripts": {
+      "test-cov": "nyc -r html mocha -r flow-remove-types/register",
+      "test": "mocha -r flow-remove-types/register"
+  },
   "devDependencies": {
     "expect": "^22.4.0",
+    "flow": "^0.2.3",
+    "flow-bin": "^0.66.0",
+    "flow-remove-types": "^1.2.3",
     "jest-mock": "^22.2.0",
     "mocha": "^5.0.1",
     "nyc": "^11.4.1"
