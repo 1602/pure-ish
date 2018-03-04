@@ -1,0 +1,171 @@
+= Pure-ish
+:toc:
+
+Side-effects manager for Javascript apps.
+
+== Theory: key concepts
+
+=== State is a single source of truth
+
+Application's state is the only thing which prescribes application behaviour. If behaviour of the app must depend on a phase of the moon or your boss's mood then both moon's phase and boss's mood should become registered members of an application state. No accidental state should control application's behaviour. Following this discipline allows to guarantee that application behaviour is determined and predictable.
+
+=== Every transition is data
+
+Want to make http request? Just describe what kind of request you have in mind, don't worry about the rest, it will be done according to spec.
+
+=== Application logic separated from side effects
+
+How do we do certain things is not a concern of application logic, which must be only concern on what do we do and why. How is a distraction and accidental complexity. Let's say there's a single API to everything, which is transition declared in specification.
+
+=== Integration test equals unit test
+
+All principles above leave your application code free of any integrations and external dependencies. We are not testing our external dependencies, right? We're testing our app and it only depends on it's state and talks in specific transitions, these things are essential to an app and can be tested in isolation. You don't need database and swarm of custom microservices running in test mode in order to check that application code is correct.
+
+== Practice: how to code
+
+=== Structure of an app: init
+
+Let's create an app which sends an HTTP request to some API endpoint. And let's write it in traditional way:
+
+[source,javascript]
+----
+const fetch = require('node-fetch');
+
+export.init = () => {
+    return fetch('http://example.com', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hello: 'world' }),
+    });
+};
+----
+
+Now let's write application code in pure-ish way, we need to export app initialization function, which will return us application state and command we want to send.
+
+[source,javascript]
+----
+const fetch = require('pure-ish/effects/http');
+
+export.init = () => {
+    return [null, fetch({
+        method: 'POST',
+        url: 'http://example.com',
+        data: { hello: 'world' },
+        json: true,
+    }).send()];
+};
+----
+
+Both pieces of code look pretty similar, minor API differences are not essential. What essential is that we return data from our `init` function, rather than a promise which represents future value of some http request that is about to start. Why does it matter? It matters because first code snippet depends on some other code just because of the way it is written, not because of the meaningful value it has. It is easy to demonstrate if we attempt to write a test. It is going to be an integration test, which changes environment around the `init` function we're testing before executing it. It can be a something like link:https://github.com/node-nock/nock#how-does-it-work[nock] or even a real service running in test mode. Point is - we're looking for workarounds now, so that our code becomes accidentally testable. Alternatively, testing second snippet is a breeze:
+
+
+[source,javascript]
+----
+const expect = require('expect');
+const { init } = require('./app');
+cont [model, command ] = init();
+
+command
+    .task
+    .stepOverTask(spec => {
+        expect(spec).toEqual(expect.objectContaining({
+            method: 'POST',
+            url: 'http://example.com',
+            data: { hello: 'world' },
+            json: true,
+        }));
+    });
+----
+
+To recap, why this way of testing is a breeze: we're testing a pure function, which returns some data, and doesn't do anything in the background, so you don't have to know what exactly you need to mock and stub in you environment. All you need to know returned as a result of this function.
+
+=== Structure of an app: update
+
+Sending an http request is a beginning of a task which followed by receiving response. Let's add this response handling code to our app, we will remember last response in app state.
+
+Non-pure, approach would like like this:
+
+[source,javascript]
+----
+const fetch = require('node-fetch');
+
+export.init = () => {
+    let successfulGreeting = null;
+
+    return fetch('http://example.com/greetings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hello: 'world' }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.object === 'error') {
+            console.error('Oh no!', data);
+        } else {
+            if (typeof data.name === 'string') {
+                console.info('Works!', data);
+                successfulGreeting = data;
+            } else {
+                console.warning('Unexpected data', data);
+            }
+        }
+    })
+    .catch(error => console.error('Oh no!', data));
+};
+----
+
+Pure-ish way of doing the same:
+
+[source,javascript]
+----
+const fetch = require('pure-ish/effects/http');
+const decode = require('pure-ish/json/decode');
+
+export.init = () => {
+    return [{
+        greeting: null,
+        error: null,
+    }, greetingApi().send('greetingCreation')];
+};
+
+exports.update = {
+    greetingCreation({ result, data, error }, model) {
+        if (result === 'success') {
+            return [{
+                ...model,
+                greeting: data,
+            }, null];
+        }
+
+        return [{
+            ...model,
+            error,
+        }, null];
+    },
+};
+
+function greetingApi() {
+    return fetch({
+        method: 'POST',
+        url: 'http://example.com/greetings',
+        data: { hello: 'world' },
+        json: true,
+        decoder: greetingDecoder(),
+    });
+}
+
+function greetingDecoder() {
+    return decode.object({ object: 'greeting', name: decode.string() });
+}
+
+----
+
+What's going on in this code example? We introduced a separation between initialization of our app and update of a state after a `greetingCreation` transaction. We introduce two new states of our app depending on a result of `greetingCreation` request we sent after initialization of the application. We also extracted `greetingApi` and `greetingDecoder` into reusable functions, which are ready to be moved to their places in app because it makes sense to categorize different functional parts of application as it grows.
+
+In a nutshell, reader of this code should see a declaration of the application states (initial, error, success) and transaction from initial state (`greetingCreation`).
+
+As application grows `init` function will continue to contain definition of a blank app state, and `update` will keep track of all the transactions and their corresponding state transformations.
