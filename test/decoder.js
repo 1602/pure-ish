@@ -1,20 +1,17 @@
 'use strict';
 
+// @flow
+
+declare var describe: any;
+declare var it: any;
+
 const expect = require('expect');
 const { objectContaining } = expect;
 const jest = require('jest-mock');
-const { decodeValue, value, string, number, boolean, array, object, constant, oneOf, optional, nullable, lazy, fail, succeed } = require('../decoder.js');
+const { decodeValue, value, string, number, boolean, array, object, constant, oneOf, optional, nullable, lazy, fail, succeed
+    } = require('../src/decoder.js');
 
 describe('Decoder', () => {
-
-    describe('decodeValue', () => {
-        it('fails when unknown decoder type encountered', () =>
-            expect(decodeValue({ type: 'something odd' }, null))
-                .toEqual({
-                    result: 'failure',
-                    error: 'Unknown decoder type: something odd',
-                }));
-    });
 
     describe('value', () => {
 
@@ -326,8 +323,11 @@ describe('Decoder', () => {
     describe('fail', () => {
 
         it('allows to alter error message', () => {
-            const optionalString = oneOf([constant(), string(), succeed(-1)]).andThen(s => s === -1 ? fail('Not string or undefined') : succeed(s));
-            expect(decodeValue(optionalString, 1)).toEqual({ result: 'failure', error: 'Not string or undefined' });
+            const optionalString = oneOf([constant(), string(), succeed(-1)])
+                .andThen(s => s === -1 ? fail('Not string or undefined') : succeed(s));
+
+            expect(decodeValue(optionalString, 1))
+                .toEqual({ result: 'failure', error: 'Not string or undefined' });
         });
     });
 

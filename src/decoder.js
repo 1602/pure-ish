@@ -7,13 +7,13 @@ const decoders = module.exports = {
     value: <T: any, Spec: null>(): Decoder<T, null> =>
         decoder('value', null, (x: null, v) => succeed(v)),
 
-    string: <T: string, Spec: null>(): Decoder<T, null> =>
+    string: <T: string, Spec: null>(): Decoder<string, null> =>
         decoder('string', null, decodeString),
 
-    boolean: <T: boolean, Spec: null>(): Decoder<T, null> =>
+    boolean: <T: boolean, Spec: null>(): Decoder<boolean, null> =>
         decoder('boolean', null, decodeBoolean),
 
-    number: <T: number, Spec: null>(): Decoder<T, null> =>
+    number: <T: number, Spec: null>(): Decoder<number, null> =>
         decoder('number', null, decodeNumber),
 
     object: <T, Spec: { [string]: any }>(spec: Spec): Decoder<T, Spec> =>
@@ -44,18 +44,40 @@ const decoders = module.exports = {
         decoder('lazy', fn, decodeLazy),
 };
 
-type Result<T> = Failure | Success<T>;
 
-type Failure = { result: 'failure', error: string };;
+type MappingFunction<A, B> = <A, B>(A) => B
 
-type Success<T> = { result: 'success', data: T };;
 
-type Decoder<T, Spec> = {
+type MapSpec<A, B> = {
+    decoder: Decoder<A, any>,
+    fn: MappingFunction<A, B>
+};
+
+
+export type Result<T> = Failure | Success<T>;
+
+
+type Failure = {|
+    result: 'failure',
+    error: string
+|};
+
+
+type Success<T> = {|
+    result: 'success',
+    data: T
+|};
+
+
+export type Decoder<T, Spec> = {
     object: 'decoder',
     type: string,
     spec: Spec,
-    handler: (Spec, any) => Result<T>
+    handler: (Spec, any) => Result<T>,
+    andThen: <A: T, B>((A) => Decoder<B, any>) => Decoder<B, any>,
+    map: (MappingFunction<T, any>) => Decoder<any, any>,
 };
+
 
 function decodeValue<T, Spec>(decoder: Decoder<T, Spec>, v: any): Result<T> {
     return decoder.handler(decoder.spec, v);
@@ -67,7 +89,7 @@ function decodeLazy<A, Spec>(fn: () => Decoder<A, Spec>, v: any): Result<A> {
 }
 
 
-function decodeString<T>(x: null, value: any): Result<T> {
+function decodeString<T>(x: null, value: any): Result<string> {
     if (value === null) {
         return fail('Expected string but received null');
     }
@@ -85,7 +107,8 @@ function decodeString<T>(x: null, value: any): Result<T> {
     return fail(`Expected string but received ${ actualType } ${ value }`);
 }
 
-function decodeNumber<T>(x: any, value: any): Result<T> {
+
+function decodeNumber<T>(x: any, value: any): Result<number> {
     if (value === null) {
         return fail('Expected number but received null');
     }
@@ -103,7 +126,8 @@ function decodeNumber<T>(x: any, value: any): Result<T> {
     return fail(`Expected number but received ${ actualType } ${ value }`);
 }
 
-function decodeBoolean<T>(x: any, value: any): Result<T> {
+
+function decodeBoolean<T>(x: any, value: any): Result<boolean> {
     if (value === null) {
         return fail('Expected boolean but received null');
     }
@@ -120,6 +144,7 @@ function decodeBoolean<T>(x: any, value: any): Result<T> {
 
     return fail(`Expected boolean but received ${ actualType } ${ value }`);
 }
+
 
 function decodeObject<T>(spec: { [string]: any }, value: any): Result<T> {
     if (value === null) {
@@ -167,6 +192,7 @@ function decodeObject<T>(spec: { [string]: any }, value: any): Result<T> {
     return fail(`Expected object but received ${ actualType } ${ value }`);
 }
 
+
 function decodeArray<A, Spec>(decoder: Decoder<A, Spec>, value): Result<Array<A>> {
     if (value === null) {
         return fail('Expected array but received null');
@@ -198,6 +224,7 @@ function decodeArray<A, Spec>(decoder: Decoder<A, Spec>, value): Result<Array<A>
     }, succeed([]));
 }
 
+
 function decodeConstant<T>(spec: T, value: any): Result<T> {
     const actualType = typeof value;
     const expectedType = typeof spec;
@@ -216,6 +243,7 @@ function decodeConstant<T>(spec: T, value: any): Result<T> {
 
     return fail(`Expected ${ expectedType } ${ String(spec) } but received ${ actualType } ${ value }`);
 }
+
 
 
 function decodeOneOf(spec, value) {
@@ -251,17 +279,14 @@ function fail(error: string) : Failure {
 }
 
 
-type MappingFunction<A, B> = <A, B>(A) => B
-
-
-function decodeMap<A, B, Spec>({ decoder, fn } : { decoder: Decoder<A, Spec>, fn: MappingFunction<A, B> }, v: any): Result<B> {
-    const res = decodeValue(decoder, v);
+function decodeMap<A, B, Spec: MapSpec<A, B>>(spec : Spec, v: any): Result<B> {
+    const res = decodeValue(spec.decoder, v);
 
     if (res.result === 'failure') {
         return res;
     }
 
-    return succeed(fn(res.data));
+    return succeed(spec.fn(res.data));
 }
 
 
@@ -304,3 +329,4 @@ function decoder<T, Spec>(type: string, spec: Spec, handler: (Spec, any) => Resu
         }
     });
 }
+
