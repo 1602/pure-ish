@@ -7,15 +7,6 @@ const { decodeValue, value, string, number, boolean, array, object, constant, on
 
 describe('Decoder', () => {
 
-    describe('decodeValue', () => {
-        it('fails when unknown decoder type encountered', () =>
-            expect(decodeValue({ type: 'something odd' }, null))
-                .toEqual({
-                    result: 'failure',
-                    error: 'Unknown decoder type: something odd',
-                }));
-    });
-
     describe('value', () => {
 
         it('always decodes successfully', () =>
