@@ -1,79 +1,66 @@
 'use strict';
 
+// 
+
 const decoders = module.exports = {
     decodeValue,
-    value: () => decoder('value', null),
-    string: () => decoder('string', null),
-    boolean: () => decoder('boolean', null),
-    number: () => decoder('number', null),
-    object: spec => decoder('object', spec),
-    array: spec => decoder('array', spec),
-    constant: spec => decoder('constant', spec),
-    oneOf: spec => decoder('oneOf', spec),
-    optional: decoder => decoders.oneOf([decoders.constant(), decoder]),
-    nullable: decoder => decoders.oneOf([decoders.constant(null), decoder]),
-    succeed: v => decoder('succeed', v),
-    fail: v => decoder('fail', v),
-    lazy: fn => decoder('lazy', fn),
+    value:() =>
+        decoder('value', null, (x, v) => succeed(v)),
+
+    string:() =>
+        decoder('string', null, decodeString),
+
+    boolean:() =>
+        decoder('boolean', null, decodeBoolean),
+
+    number:() =>
+        decoder('number', null, decodeNumber),
+
+    object:(spec) =>
+        decoder('object', spec, decodeObject),
+
+    array:(spec) =>
+        decoder('array', spec, decodeArray),
+
+    constant:(spec) =>
+        decoder('constant', spec, decodeConstant),
+
+    oneOf:(spec) =>
+        decoder('oneOf', spec, decodeOneOf),
+
+    optional:(decoder) =>
+        decoders.oneOf([decoders.constant(), decoder]),
+
+    nullable:(decoder) =>
+        decoders.oneOf([decoders.constant(null), decoder]),
+
+    succeed:(v) =>
+        decoder('succeed', v, (spec, v) => succeed(spec)),
+
+    fail:(v) =>
+        decoder('fail', v, fail),
+
+    lazy:(fn) =>
+        decoder('lazy', fn, decodeLazy),
 };
 
+
+;
+
+;
+
+
 function decodeValue(decoder, v) {
-    if (decoder.type === 'value') {
-        return succeed(v);
-    }
-
-    if (decoder.type === 'string') {
-        return decodeString(v);
-    }
-
-    if (decoder.type === 'number') {
-        return decodeNumber(v);
-    }
-
-    if (decoder.type === 'boolean') {
-        return decodeBoolean(v);
-    }
-
-    if (decoder.type === 'object') {
-        return decodeObject(decoder.spec, v);
-    }
-
-    if (decoder.type === 'array') {
-        return decodeArray(decoder.spec, v);
-    }
-
-    if (decoder.type === 'constant') {
-        return decodeConstant(decoder.spec, v);
-    }
-
-    if (decoder.type === 'oneOf') {
-        return decodeOneOf(decoder.spec, v);
-    }
-
-    if (decoder.type === 'succeed') {
-        return succeed(decoder.spec);
-    }
-
-    if (decoder.type === 'fail') {
-        return fail(decoder.spec);
-    }
-
-    if (decoder.type === 'lazy') {
-        return decodeValue(decoder.spec(), v);
-    }
-
-    if (decoder.type === 'map') {
-        return decodeMap(decoder.spec, v);
-    }
-
-    if (decoder.type === 'andThen') {
-        return decodeAndThen(decoder.spec, v);
-    }
-
-    return fail('Unknown decoder type: ' + decoder.type);
+    return decoder.handler(decoder.spec, v);
 }
 
-function decodeString(value) {
+
+function decodeLazy(fn, v) {
+    return decodeValue(fn(), v);
+}
+
+
+function decodeString(x, value) {
     if (value === null) {
         return fail('Expected string but received null');
     }
@@ -91,7 +78,7 @@ function decodeString(value) {
     return fail(`Expected string but received ${ actualType } ${ value }`);
 }
 
-function decodeNumber(value) {
+function decodeNumber(x, value) {
     if (value === null) {
         return fail('Expected number but received null');
     }
@@ -109,7 +96,7 @@ function decodeNumber(value) {
     return fail(`Expected number but received ${ actualType } ${ value }`);
 }
 
-function decodeBoolean(value) {
+function decodeBoolean(x, value) {
     if (value === null) {
         return fail('Expected boolean but received null');
     }
@@ -139,7 +126,7 @@ function decodeObject(spec, value) {
     }
 
     if (actualType === 'object') {
-        return Object
+        const props = Object
             .keys(spec)
             .reduce((accumulator, specKey) => {
                 if (accumulator.result === 'failure') {
@@ -149,14 +136,25 @@ function decodeObject(spec, value) {
                 const propertyDecoder = spec[specKey];
                 const decodingPropertyResult = decodeValue(propertyDecoder, value[specKey]);
                 if (decodingPropertyResult.result === 'success') {
-                    accumulator.data[specKey] = decodingPropertyResult.data;
-                    return accumulator;
+                    return succeed(
+                         Object.defineProperty(
+                            accumulator.data,
+                            specKey,
+                            { value: { value: decodingPropertyResult.data, enumerable: true }, enumerable: true }
+                        )
+                    );
                 }
 
                 decodingPropertyResult.error = specKey + ': ' + decodingPropertyResult.error;
 
                 return decodingPropertyResult;
-            }, succeed({}));
+            }, succeed(Object.create(null)));
+
+        if (props.result === 'failure') {
+            return fail(props.error);
+        }
+
+        return succeed(Object.create(null, props.data));
     }
 
     return fail(`Expected object but received ${ actualType } ${ value }`);
@@ -198,7 +196,7 @@ function decodeConstant(spec, value) {
     const expectedType = typeof spec;
 
     if (value === null && spec !== null) {
-        return fail(`Expected ${ expectedType } ${ spec } but received null`);
+        return fail(`Expected ${ expectedType } ${ String(spec) } but received null`);
     }
 
     if (actualType === 'undefined' && expectedType === 'undefined') {
@@ -209,7 +207,7 @@ function decodeConstant(spec, value) {
         return succeed(value);
     }
 
-    return fail(`Expected ${ expectedType } ${ spec } but received ${ actualType } ${ value }`);
+    return fail(`Expected ${ expectedType } ${ String(spec) } but received ${ actualType } ${ value }`);
 }
 
 
@@ -233,7 +231,7 @@ function decodeOneOf(spec, value) {
 function succeed(data) {
     return {
         result: 'success',
-        data
+        data,
     };
 }
 
@@ -241,35 +239,41 @@ function succeed(data) {
 function fail(error) {
     return {
         result: 'failure',
-        error
+        error,
     };
 }
 
 
+
+
 function decodeMap({ decoder, fn }, v) {
     const res = decodeValue(decoder, v);
-    if (res.result === 'success') {
-        res.data = fn(res.data);
+
+    if (res.result === 'failure') {
+        return res;
     }
-    return res;
+
+    return succeed(fn(res.data));
 }
+
 
 function decodeAndThen({ decoder, next }, v) {
     const res = decodeValue(decoder, v);
-    if (res.result === 'success') {
-        return decodeValue(next(res.data), v);
+    if (res.result === 'failure') {
+        return res;
     }
-    return res;
+
+    return decodeValue(next(res.data), v);
 }
 
 
-function decoder(type, spec) {
+function decoder(type, spec, handler) {
     return Object.create({
         map(fn) {
-            return decoder('map', { decoder: this, fn });
+            return decoder('map', { decoder: this, fn }, decodeMap);
         },
         andThen(next) {
-            return decoder('andThen', { decoder: this, next });
+            return decoder('andThen', { decoder: this, next }, decodeAndThen);
         },
     }, {
         object: {
@@ -287,5 +291,8 @@ function decoder(type, spec) {
             writable: false,
             enumerable: true,
         },
+        handler: {
+            value: handler,
+        }
     });
 }
