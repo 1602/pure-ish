@@ -89,7 +89,7 @@ function task(spec, handler) {
                         let { data } = result;
                         while(true) {
                             if (continuation.length === 0) {
-                                onComplete(result);
+                                onComplete({ result: 'success', data });
                                 break;
                             }
 
