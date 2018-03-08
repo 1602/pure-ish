@@ -83,7 +83,6 @@ function task(spec, handler) {
             runTask();
 
             function runTask() {
-                console.log('will run', spec);
                 handler(spec, result => {
                     if (result.result === 'success') {
                         let { data } = result;
