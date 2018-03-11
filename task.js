@@ -5,6 +5,7 @@ exports.sequence = sequence;
 exports.succeed = succeed;
 exports.fail = fail;
 
+const { debug } = require('./index.js');
 
 function task(spec, handler) {
     let resolvedResult = null;
@@ -78,15 +79,21 @@ function task(spec, handler) {
         },
         _perform(onComplete) {
             const task = this;
-            let { handler, spec, continuation } = task;
+            let { handler, spec } = task;
+            let continuation = task.continuation.slice();
 
             runTask();
 
             function runTask() {
+                const time = Date.now();
                 handler(spec, result => {
+                    if (debug) {
+                        debug.send({ event: 'task', spec, result, duration: Date.now() - time });
+                    }
+
                     if (result.result === 'success') {
                         let { data } = result;
-                        while(true) {
+                        while (true) {
                             if (continuation.length === 0) {
                                 onComplete({ result: 'success', data });
                                 break;
@@ -103,7 +110,11 @@ function task(spec, handler) {
                                 runTask();
                                 break;
                             } else if (next.operation === 'map') {
-                                data = next.fn(data);
+                                try {
+                                    data = next.fn(data);
+                                } catch (error) {
+                                    return onComplete({ result: 'failure', error });
+                                }
                             } else {
                                 throw new Error('Unknown operation');
                             }
@@ -138,7 +149,11 @@ function map(task, onComplete) {
 
     handler(task.task.spec, res => {
         if (res.result === 'success') {
-            res.data = task.next(res.data);
+            try {
+                res.data = task.next(res.data);
+            } catch (error) {
+                return onComplete({ result: 'failure', error });
+            }
         }
         onComplete(res);
     });

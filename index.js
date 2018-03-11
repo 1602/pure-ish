@@ -37,6 +37,8 @@ if (process.env.DEBUGGER_PORT) {
     spawn('open', ['http://localhost:' + process.env.DEBUGGER_PORT + '/']);
 }
 
+module.exports.debug = debug;
+
 function trackUpdate(msg, state, cmd) {
     if (debug) {
         debug.send({ event: 'update', msg, state, cmd });
@@ -141,10 +143,11 @@ function execute(cmd /*: Cmd */) {
         return;
     }
 
-    task._perform(payload => propagateUpdate({ name: cmd.message, payload }));
+    task._perform(payload => {
+        propagateUpdate({ name: cmd.message, payload });
+    });
 
 }
-
 
 
 function propagateUpdate(msg) {
@@ -158,19 +161,21 @@ function propagateUpdate(msg) {
         throw new Error('Unknown message ' + msg.name);
     }
 
-    const nextStep = updateCase(msg.payload, model);
-    if (nextStep) {
-        const [m, cmd] = nextStep;
-        dump(m);
-        trackUpdate(msg, m, cmd);
-        if (model !== m) {
-            model = m;
-            if (typeof subscriptions === 'function') {
-                registerSubscriptions(subscriptions(model));
+    process.nextTick(() => {
+        const nextStep = updateCase(msg.payload, model);
+        if (nextStep) {
+            const [m, cmd] = nextStep;
+            dump(m);
+            trackUpdate(msg, m, cmd);
+            if (model !== m) {
+                model = m;
+                if (typeof subscriptions === 'function') {
+                    registerSubscriptions(subscriptions(model));
+                }
             }
+            execute(cmd);
         }
-        execute(cmd);
-    }
+    });
 }
 
 

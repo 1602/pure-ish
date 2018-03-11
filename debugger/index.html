@@ -155,6 +155,32 @@ ul.jsondiffpatch-textdiff {
         <script
             type="text/javascript"
             src="https://cdn.jsdelivr.net/npm/jsondiffpatch@0.3.1/dist/jsondiffpatch.umd.min.js"></script>
+
+<style>
+.http-method {
+    padding: 2px;
+    margin: 2px;
+    background: black;
+    color: white;
+}
+
+.http-url {
+    padding: 2px;
+    margin: 2px;
+    color: royalblue;
+}
+
+.http-status {
+    padding: 2px;
+    margin: 2px;
+}
+
+.task-duration {
+    padding: 2px;
+    margin: 2px;
+    color: red;
+}
+</style>
     </head>
     <body>
         <div id="log"></div>
@@ -167,13 +193,17 @@ const log = document.getElementById('log');
 
 source.onmessage = function(e) {
     const next = JSON.parse(e.data);
-    if (prev) {
-        append(next);
+    if (next.event === 'update') {
+        if (prev) {
+            appendStateUpdate(next);
+        }
+        prev = next;
+    } else if (next.event === 'task') {
+        appendTask(next);
     }
-    prev = next;
 };
 
-function append(next) {
+function appendStateUpdate(next) {
     const delta = jsondiffpatch.diff(prev.state, next.state);
 
     const diff = document.createElement('div');
@@ -186,6 +216,39 @@ function append(next) {
     log.appendChild(header);
     log.appendChild(diff);
 }
+
+function appendTask(next) {
+    console.log(next);
+    log.appendChild(formatTask(next));
+}
+
+function formatTask({ spec, duration, result }) {
+    const row = document.createElement('div');
+    if (spec.url && spec.method) {
+        const method = document.createElement('span');
+        method.className = 'http-method'
+        method.innerHTML = spec.method;
+
+        const url = document.createElement('code');
+        method.className = 'http-url'
+        url.innerHTML = spec.url;
+
+        const dur = document.createElement('strong');
+        dur.className = 'task-duration'
+        dur.innerHTML = duration;
+
+        const statusCode = document.createElement('span');
+        statusCode.className = 'http-status'
+        statusCode.innerHTML = result.data.status.code;
+
+        row.appendChild(method);
+        row.appendChild(url);
+        row.appendChild(dur);
+        row.appendChild(statusCode);
+    }
+    return row;
+}
+
 </script>
     </body>
 </html>
