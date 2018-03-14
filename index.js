@@ -25,6 +25,7 @@ module.exports = {
 
 const intervalTimers = {};
 let intervalHandlers = {};
+let shutdownHandlers = [];
 let update = {};
 let model = {};
 let subscriptions /*: ?function */ = null;
@@ -34,7 +35,7 @@ let debug = null;
 if (process.env.DEBUGGER_PORT) {
     debug = debuggerServer(parseInt(process.env.DEBUGGER_PORT, 10));
 
-    spawn('open', ['http://localhost:' + process.env.DEBUGGER_PORT + '/']);
+    // spawn('open', ['http://localhost:' + process.env.DEBUGGER_PORT + '/']);
 }
 
 module.exports.debug = debug;
@@ -64,10 +65,15 @@ function program(data, definitions /*: { init: function, update: any, subscripti
 
     return {
         finish: () => {
+            stopApplication();
             stopTimers();
             stopDebugger();
         },
     };
+}
+
+function stopApplication() {
+    shutdownHandlers.forEach(command => execute(command));
 }
 
 function stopTimers() {
@@ -96,12 +102,17 @@ function noCmd() {
 
 function registerSubscriptions(s) {
     intervalHandlers = {};
+    shutdownHandlers = [];
     register(s);
 
     function register(s) {
         if (s.subject === 'interval') {
             if (s.handler) {
                 assertInterval(s.period, s.handler);
+            }
+        } else if (s.subject === 'shutdown') {
+            if (s.handler) {
+                assertShutdown(s.handler);
             }
         } else if (s.subject === 'batch') {
             s.subs.forEach(register);
@@ -120,6 +131,11 @@ function assertInterval(period, handler) {
     }
 
     intervalHandlers[period].push(handler);
+}
+
+
+function assertShutdown(handler) {
+    shutdownHandlers.push(handler);
 }
 
 
