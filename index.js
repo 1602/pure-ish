@@ -3,6 +3,7 @@
 const fs = require('fs');
 const debuggerServer = require('./debugger/server.js');
 const spawn = require('child_process').spawn;
+const uuid = require('uuid');
 
 /* @flow */
 
@@ -40,9 +41,9 @@ if (process.env.DEBUGGER_PORT) {
 
 module.exports.debug = debug;
 
-function trackUpdate(msg, state, cmd) {
+function trackUpdate(rayId, msg, state, cmd) {
     if (debug) {
-        debug.send({ event: 'update', msg, state, cmd });
+        debug.send({ event: 'update', rayId, msg, state, cmd });
     }
 }
 
@@ -73,7 +74,7 @@ function program(data, definitions /*: { init: function, update: any, subscripti
 }
 
 function stopApplication() {
-    shutdownHandlers.forEach(command => execute(command));
+    shutdownHandlers.forEach(command => startRay(command));
 }
 
 function stopTimers() {
@@ -142,9 +143,14 @@ function assertShutdown(handler) {
 function intervalHandler(period) {
     return () => {
         if (intervalHandlers[period]) {
-            intervalHandlers[period].forEach(command => execute(command));
+            intervalHandlers[period].forEach(command => startRay(command));
         }
     };
+}
+
+
+function startRay(command) {
+    return execute({ ...command, rayId: uuid.v4() });
 }
 
 
@@ -159,14 +165,14 @@ function execute(cmd /*: Cmd */) {
         return;
     }
 
-    task._perform(payload => {
-        propagateUpdate({ name: cmd.message, payload });
+    task._perform(cmd.rayId, payload => {
+        propagateUpdate(cmd.rayId, { name: cmd.message, payload });
     });
 
 }
 
 
-function propagateUpdate(msg) {
+function propagateUpdate(rayId, msg) {
     if (!update) {
         return;
     }
@@ -182,14 +188,16 @@ function propagateUpdate(msg) {
         if (nextStep) {
             const [m, cmd] = nextStep;
             dump(m);
-            trackUpdate(msg, m, cmd);
+            trackUpdate(rayId, msg, m, cmd);
             if (model !== m) {
                 model = m;
                 if (typeof subscriptions === 'function') {
                     registerSubscriptions(subscriptions(model));
                 }
             }
-            execute(cmd);
+            execute({ ...cmd, rayId });
+        } else {
+            trackUpdate(rayId, msg, model, noCmd());
         }
     });
 }

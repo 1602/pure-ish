@@ -15,22 +15,10 @@ function task(spec, handler) {
         andThen(fn) {
             this.continuation.push({ operation: 'chain', fn });
             return this;
-            /*
-            return task({
-                task: this,
-                next: fn,
-            }, chain);
-            */
         },
         map(fn) {
             this.continuation.push({ operation: 'map', fn });
             return this;
-            /*
-            return task({
-                task: this,
-                next: fn,
-            }, map);
-            */
         },
         attempt(message) {
             return { object: 'command', task: this, message };
@@ -77,7 +65,7 @@ function task(spec, handler) {
                 }
             }
         },
-        _perform(onComplete) {
+        _perform(rayId, onComplete) {
             const task = this;
             let { handler, spec } = task;
             let continuation = task.continuation.slice();
@@ -88,7 +76,7 @@ function task(spec, handler) {
                 const time = Date.now();
                 handler(spec, result => {
                     if (debug) {
-                        debug.send({ event: 'task', spec, result, duration: Date.now() - time });
+                        debug.send({ event: 'task', rayId, spec, result, duration: Date.now() - time });
                     }
 
                     if (result.result === 'success') {
@@ -133,34 +121,12 @@ function task(spec, handler) {
 }
 
 
-function chain(spec, onComplete) {
-    spec.task._perform(res => {
-        if (res.result === 'success') {
-            spec.next(res.data)._perform(onComplete);
-        } else {
-            onComplete(res);
-        }
-    });
-}
-
-
-function map(task, onComplete) {
-    const { handler } = task.task;
-
-    handler(task.task.spec, res => {
-        if (res.result === 'success') {
-            try {
-                res.data = task.next(res.data);
-            } catch (error) {
-                return onComplete({ result: 'failure', error });
-            }
-        }
-        onComplete(res);
-    });
-}
-
 
 function sequence(tasks) {
+    if (tasks.length === 0) {
+        return succeed([]);
+    }
+
     return iterate(tasks, []);
 
     function iterate(tasks, accumulator) {
