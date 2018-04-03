@@ -28,7 +28,7 @@ const intervalTimers = {};
 let intervalHandlers = {};
 let shutdownHandlers = [];
 let update = {};
-let model = {};
+let model = undefined;
 let subscriptions /*: ?function */ = null;
 
 let debug = null;
@@ -49,27 +49,37 @@ function trackUpdate(rayId, msg, state, cmd) {
 
 function program(data, definitions /*: { init: function, update: any, subscriptions: function } */) {
     update = definitions.update;
-    const [m, cmd] = definitions.init(data);
-    if (process.env.PERSIST_STORE) {
-        try {
-            model = JSON.parse(fs.readFileSync(process.env.PERSIST_STORE).toString());
-        } catch (e) {
-            model = m;
-            execute(cmd);
-        }
-    } else {
-        model = m;
-        execute(cmd);
-    }
     subscriptions = definitions.subscriptions;
-    registerSubscriptions(definitions.subscriptions(model));
+
+    function startApp(state, action) {
+        if (typeof state === 'undefined') {
+            const initialCheckpoint = definitions.init(data);
+            state = initialCheckpoint[0];
+            action = initialCheckpoint[1];
+        }
+
+        step(uuid.v4(), { object: 'message', name: '$init', payload: state }, [state, action]);
+    }
+
+    if (debug) {
+        debug.start({
+            onStart: startApp,
+            onResume: (state, action) => {
+                model = state;
+                startRay(action);
+                registerSubscriptions(subscriptions(model));
+            }
+        });
+    } else {
+        startApp();
+    }
 
     return {
-        finish: () => {
+        finish() {
             stopApplication();
             stopTimers();
             stopDebugger();
-        },
+        }
     };
 }
 
@@ -150,6 +160,10 @@ function intervalHandler(period) {
 
 
 function startRay(command) {
+    if (debug && debug.isPaused()) {
+        return;
+    }
+
     return execute({ ...command, rayId: uuid.v4() });
 }
 
@@ -177,34 +191,75 @@ function propagateUpdate(rayId, msg) {
         return;
     }
 
+    if (typeof update === 'function') {
+        next(msg, update);
+        return;
+    }
+
     const updateCase = update[msg.name];
+    const caseType = typeof updateCase;
 
-    if (!updateCase) {
-        throw new Error('Unknown message ' + msg.name);
+    if (typeof updateCase === 'function') {
+        next(msg.payload, updateCase);
+        return;
     }
 
-    process.nextTick(() => {
-        const nextStep = updateCase(msg.payload, model);
-        if (nextStep) {
-            const [m, cmd] = nextStep;
-            dump(m);
-            trackUpdate(rayId, msg, m, cmd);
-            if (model !== m) {
-                model = m;
-                if (typeof subscriptions === 'function') {
-                    registerSubscriptions(subscriptions(model));
-                }
-            }
-            execute({ ...cmd, rayId });
+    if (typeof updateCase === 'object') {
+
+        if (Array.isArray(updateCase)) {
+            handleCheckpoint(updateCase[0], updateCase[1]);
         } else {
-            trackUpdate(rayId, msg, model, noCmd());
+            handleCheckpoint(updateCase.success, updateCase.failure);
         }
-    });
-}
+
+        return;
+    }
+
+    console.error('Checkpoint "%s" is not registered', msg.name);
+    handleNextStep();
+
+    function handleCheckpoint(success, failure) {
+        if (msg.payload.result === 'success') {
+            if (typeof success === 'function') {
+                return next(msg.payload.data, success);
+            }
+
+            console.error('Success case is not registered for checkpoint "%s", leaving unhandled', msg.name);
+
+            return handleNextStep();
+        }
+
+        if (msg.payload.result === 'failure') {
+            if (typeof failure === 'function') {
+                return next(msg.payload.error, failure);
+            }
+
+            console.error('Failure case is not registered for checkpoint "%s", leaving unhandled', msg.name);
+
+            return handleNextStep();
+        }
+    }
+
+    function next(arg, handler) {
+        process.nextTick(() => handleNextStep(handler(arg, model)));
+    }
 
 
-function dump(m) {
-    if (process.env.PERSIST_STORE) {
-        fs.writeFileSync(process.env.PERSIST_STORE, JSON.stringify(m, null, '  '));
+    function handleNextStep(nextStep) {
+        step(rayId, msg, nextStep || [model, noCmd()]);
     }
 }
+
+function step(rayId, msg, [state, action]) {
+    const command = { ...action, rayId };
+    trackUpdate(rayId, msg, state, command);
+    if (model !== state) {
+        model = state;
+        if (typeof subscriptions === 'function') {
+            registerSubscriptions(subscriptions(model));
+        }
+    }
+    // in step-by-step mode command executed after receiving a signal from a master process (debugger)
+    execute(command);
+}
+

@@ -4,6 +4,7 @@ exports.task = task;
 exports.sequence = sequence;
 exports.succeed = succeed;
 exports.fail = fail;
+exports.promisify = promisify;
 
 const { debug } = require('./index.js');
 
@@ -49,6 +50,13 @@ function task(spec, handler) {
                     const next = this.continuation.shift();
                     if (next.operation === 'chain') {
                         const nextTask = next.fn(data);
+                        if (nextTask && nextTask.spec && nextTask.spec.task === 'succeed') {
+                            return { continue: true, data: nextTask.spec.data };
+                        }
+                        if (nextTask && nextTask.spec && nextTask.spec.task === 'fail') {
+                            resolvedResult = { result: 'failure', error: nextTask.spec.error };
+                            return { continue: false };
+                        }
                         this.spec = nextTask.spec;
                         this.handler = nextTask.handler;
                         if (nextTask.continuation.length > 0) {
@@ -72,44 +80,68 @@ function task(spec, handler) {
 
             runTask();
 
-            function runTask() {
+            async function runTask() {
                 const time = Date.now();
-                handler(spec, result => {
+
+                if (debug && debug.isStepByStep()) {
+                    await debug.confirmationSignal(spec);
+                }
+
+                handler(spec, data => {
+
                     if (debug) {
-                        debug.send({ event: 'task', rayId, spec, result, duration: Date.now() - time });
+                        debug.send({
+                            event: 'task',
+                            rayId,
+                            spec,
+                            result: { result: 'success', data },
+                            duration: Date.now() - time
+                        });
                     }
 
-                    if (result.result === 'success') {
-                        let { data } = result;
-                        while (true) {
-                            if (continuation.length === 0) {
-                                onComplete({ result: 'success', data });
-                                break;
-                            }
-
-                            const next = continuation.shift();
-                            if (next.operation === 'chain') {
-                                const nextTask = next.fn(data);
-                                spec = nextTask.spec;
-                                handler = nextTask.handler;
-                                if (nextTask.continuation.length > 0) {
-                                    continuation = nextTask.continuation.concat(continuation);
-                                }
-                                runTask();
-                                break;
-                            } else if (next.operation === 'map') {
-                                try {
-                                    data = next.fn(data);
-                                } catch (error) {
-                                    return onComplete({ result: 'failure', error });
-                                }
-                            } else {
-                                throw new Error('Unknown operation');
-                            }
+                    while (true) {
+                        if (continuation.length === 0) {
+                            onComplete({ result: 'success', data });
+                            break;
                         }
-                    } else {
-                        onComplete(result);
+
+                        const next = continuation.shift();
+                        if (next.operation === 'chain') {
+                            let nextTask;
+                            try {
+                                nextTask = next.fn(data);
+                            } catch (error) {
+                                return onComplete({ result: 'failure', error });
+                            }
+                            spec = nextTask.spec;
+                            handler = nextTask.handler;
+                            if (nextTask.continuation.length > 0) {
+                                continuation = nextTask.continuation.concat(continuation);
+                            }
+                            runTask();
+                            break;
+                        } else if (next.operation === 'map') {
+                            try {
+                                data = next.fn(data);
+                            } catch (error) {
+                                const { message, code, stack, details } = error;
+                                return onComplete({ result: 'failure', error: { message, code, stack, details } });
+                            }
+                        } else {
+                            throw new Error('Unknown operation');
+                        }
                     }
+                }, error => {
+                    if (debug) {
+                        debug.send({
+                            event: 'task',
+                            rayId,
+                            spec,
+                            result: { result: 'failure', error },
+                            duration: Date.now() - time
+                        });
+                    }
+                    onComplete({ result: 'failure', error });
                 });
             }
         },
@@ -144,11 +176,25 @@ function sequence(tasks) {
 
 
 function succeed(data) {
-    return task({ task: 'succeed', data }, ({ data }, onComplete) => onComplete({ result: 'success', data }));
+    return task(
+        { task: 'succeed', data },
+        ({ data }, resolve) => resolve(data)
+    );
 }
-
 
 function fail(error) {
-    return task({ task: 'fail', error }, ({ error }, onComplete) => onComplete({ result: 'failure', error }));
+    return task(
+        { task: 'fail', error },
+        ({ error }, resolve, reject) => reject(error)
+    );
 }
 
+function promisify(fn) {
+    return function(spec, resolve, reject) {
+        Promise
+            .resolve()
+            .then(() => fn(spec))
+            .then(resolve)
+            .catch(reject);
+    };
+}
