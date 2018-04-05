@@ -10,6 +10,7 @@ const { debug } = require('./index.js');
 
 function task(spec, handler) {
     let resolvedResult = null;
+    let rejectedResult = null;
 
     return Object.create({
         object: 'task',
@@ -21,6 +22,10 @@ function task(spec, handler) {
             this.continuation.push({ operation: 'map', fn });
             return this;
         },
+        mapError(fn) {
+            this.continuation.push({ operation: 'mapError', fn });
+            return this;
+        },
         attempt(message) {
             return { object: 'command', task: this, message };
         },
@@ -30,10 +35,16 @@ function task(spec, handler) {
                 return mock(resolvedResult);
             }
 
+            // and this hack :(
+            if (rejectedResult) {
+                throw rejectedResult;
+            }
+            // TODO: revisit mocking api (handle error and final result of chain)
+
             const result = mock(this.spec);
             if (result.result === 'success') {
                 let { data } = result;
-                while(true) {
+                while (true) {
                     const c = tryContinuation.call(this, data);
                     if (c.continue) {
                         data = c.data;
@@ -41,6 +52,12 @@ function task(spec, handler) {
                         break;
                     }
                 }
+                return;
+            }
+
+            if (result.result === 'failure') {
+                const errorMapping = this.continuation.filter(c => c.operation === 'mapError').map(c => c.fn);
+                rejectedResult = errorMapping.reduce((accumulator, errorMapperFn) => errorMapperFn(accumulator), result.error);
             }
 
             return this;
@@ -54,7 +71,7 @@ function task(spec, handler) {
                             return { continue: true, data: nextTask.spec.data };
                         }
                         if (nextTask && nextTask.spec && nextTask.spec.task === 'fail') {
-                            resolvedResult = { result: 'failure', error: nextTask.spec.error };
+                            rejectedResult = nextTask.spec.error;
                             return { continue: false };
                         }
                         this.spec = nextTask.spec;
@@ -101,7 +118,7 @@ function task(spec, handler) {
 
                     while (true) {
                         if (continuation.length === 0) {
-                            onComplete({ result: 'success', data });
+                            succeed(data);
                             break;
                         }
 
@@ -111,7 +128,8 @@ function task(spec, handler) {
                             try {
                                 nextTask = next.fn(data);
                             } catch (error) {
-                                return onComplete({ result: 'failure', error });
+                                const { message, code, stack, details } = error;
+                                return fail({ message, code, stack, details });
                             }
                             spec = nextTask.spec;
                             handler = nextTask.handler;
@@ -125,13 +143,20 @@ function task(spec, handler) {
                                 data = next.fn(data);
                             } catch (error) {
                                 const { message, code, stack, details } = error;
-                                return onComplete({ result: 'failure', error: { message, code, stack, details } });
+                                return fail({ message, code, stack, details });
                             }
-                        } else {
+                        } else if (next.operation !== 'mapError') {
                             throw new Error('Unknown operation');
                         }
                     }
-                }, error => {
+                }, error => fail(error));
+
+
+                function succeed(data) {
+                    onComplete({ result: 'success', data });
+                }
+
+                function fail(error) {
                     if (debug) {
                         debug.send({
                             event: 'task',
@@ -141,8 +166,14 @@ function task(spec, handler) {
                             duration: Date.now() - time
                         });
                     }
-                    onComplete({ result: 'failure', error });
-                });
+
+                    const errorMapping = continuation.filter(c => c.operation === 'mapError').map(c => c.fn);
+
+                    onComplete({
+                        result: 'failure',
+                        error: errorMapping.reduce((accumulator, errorMapperFn) => errorMapperFn(accumulator), error)
+                    });
+                }
             }
         },
     }, {
