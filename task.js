@@ -52,7 +52,7 @@ function task(spec, handler) {
                         break;
                     }
                 }
-                return;
+                return this;
             }
 
             if (result.result === 'failure') {
