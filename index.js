@@ -64,9 +64,10 @@ function program(data, definitions /*: { init: function, update: any, subscripti
     if (debug) {
         debug.start({
             onStart: startApp,
-            onResume: (state, action) => {
+            // resumeCallback(state, rayId, message, payload);
+            onResume: (state, rayId, name, payload) => {
                 model = state;
-                startRay(action);
+                propagateUpdate(rayId, { name, payload });
                 registerSubscriptions(subscriptions(model));
             }
         });
@@ -153,7 +154,9 @@ function assertShutdown(handler) {
 function intervalHandler(period) {
     return () => {
         if (intervalHandlers[period]) {
-            intervalHandlers[period].forEach(command => startRay(command));
+            intervalHandlers[period].forEach(msg =>
+                propagateUpdate(uuid.v4(), { name: msg, payload: { result: 'success', data: Date.now() } })
+            );
         }
     };
 }

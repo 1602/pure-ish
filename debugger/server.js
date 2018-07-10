@@ -137,7 +137,7 @@ function open(port, startCallback, resumeCallback) {
 
         if (req.url === '/resume' && req.method === 'POST') {
             withJsonBody(req, data => {
-                const { state, action } = data;
+                const { state, message, payload, rayId } = data;
                 paused = false;
                 stepByStep = false;
                 console.log('resumed');
@@ -146,7 +146,7 @@ function open(port, startCallback, resumeCallback) {
                 });
                 res.end();
                 if (state) {
-                    resumeCallback(state, action);
+                    resumeCallback(state, rayId, message, payload);
                 }
             });
             return;
