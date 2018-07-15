@@ -154,9 +154,12 @@ function assertShutdown(handler) {
 function intervalHandler(period) {
     return () => {
         if (intervalHandlers[period]) {
-            intervalHandlers[period].forEach(msg =>
+            intervalHandlers[period].forEach(msg => {
+                if (debug && debug.isPaused()) {
+                    return;
+                }
                 propagateUpdate(uuid.v4(), { name: msg, payload: { result: 'success', data: Date.now() } })
-            );
+            });
         }
     };
 }
